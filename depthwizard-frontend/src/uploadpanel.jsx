@@ -1,13 +1,9 @@
-import { useState } from "react";
-
-function UploadPanel() {
-  const [image, setImage] = useState(null);
-
+function UploadPanel({ onImageSelect, onProcess }) {
   function handleImageChange(event) {
     const file = event.target.files[0];
 
     if (file) {
-      setImage(file);
+      onImageSelect(file);
     }
   }
 
@@ -21,17 +17,12 @@ function UploadPanel() {
         onChange={handleImageChange}
       />
 
-      {image && (
-        <div>
-          <h3>Preview</h3>
+      <br />
+      <br />
 
-          <img
-            src={URL.createObjectURL(image)}
-            alt="Satellite preview"
-            width="400"
-          />
-        </div>
-      )}
+      <button onClick={onProcess}>
+        Process Image
+      </button>
     </div>
   );
 }
