@@ -1,0 +1,334 @@
+.upload-panel {
+  width: 100%;
+}
+
+/* ---------------- FIELD ---------------- */
+
+.upload-field {
+  margin-bottom: 26px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4c4352;
+  letter-spacing: 0.1px;
+}
+
+/* ---------------- IMAGE UPLOAD ---------------- */
+
+.file-area {
+  position: relative;
+  min-height: 130px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  background: #f3f0f5;
+  border: 1px dashed #b9afc1;
+  border-radius: 10px;
+
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.file-area:hover {
+  border-color: #80609c;
+  background: #f5f2f7;
+}
+
+.file-main {
+  font-size: 16px;
+  font-weight: 600;
+  color: #3d3344;
+  margin-bottom: 5px;
+}
+
+.file-help {
+  font-size: 12px;
+  color: #807784;
+}
+
+.file-selected {
+  font-size: 14px;
+  font-weight: 600;
+  color: #603f83;
+  margin-bottom: 5px;
+}
+
+.file-name {
+  max-width: 500px;
+  font-size: 12px;
+  color: #716a75;
+  word-break: break-word;
+}
+
+.file-button {
+  min-width: 90px;
+  height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 16px;
+
+  background: #faf9fb;
+  border: 1px solid #603f83;
+  border-radius: 6px;
+
+  color: #603f83;
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.file-button:hover {
+  background: #603f83;
+  color: #ffffff;
+}
+
+.file-button input {
+  display: none;
+}
+
+/* ---------------- IMAGE TYPE OPTIONS ---------------- */
+
+.type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/*
+  Clean selection boxes:
+  - minimal radius
+  - no shadow
+  - no heavy fill
+  - thin outline
+*/
+
+.type-options label {
+  position: relative;
+
+  min-height: 52px;
+  padding: 0 16px;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  background: #ffffff;
+  border: 1px solid #cfc7d5;
+  border-radius: 5px;
+
+  cursor: pointer;
+
+  color: #4b4251;
+  font-size: 13px;
+  font-weight: 500;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.type-options label:hover {
+  border-color: #8c74a1;
+  background: #fcfbfd;
+}
+
+/* Hide the browser default radio appearance */
+
+.type-options input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 15px;
+  height: 15px;
+
+  margin: 0;
+
+  flex-shrink: 0;
+
+  border: 1.5px solid #a79ead;
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  position: relative;
+  cursor: pointer;
+}
+
+/* Selected radio circle */
+
+.type-options input[type="radio"]:checked {
+  border-color: #603f83;
+}
+
+.type-options input[type="radio"]:checked::after {
+  content: "";
+
+  position: absolute;
+
+  width: 7px;
+  height: 7px;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%);
+
+  border-radius: 50%;
+  background: #603f83;
+}
+
+/* Selected option */
+
+.type-options label:has(input[type="radio"]:checked) {
+  border-color: #603f83;
+  background: #faf8fc;
+  color: #603f83;
+  font-weight: 600;
+}
+
+/* ---------------- GEO FIELDS ---------------- */
+
+.geo-fields {
+  margin-top: 8px;
+  margin-bottom: 26px;
+
+  padding: 18px 20px;
+
+  background: #f5f1f7;
+  border-left: 3px solid #603f83;
+
+  border-radius: 7px;
+}
+
+/* ---------------- TEXT INPUTS ---------------- */
+
+.geo-fields input[type="text"],
+.geo-fields input[type="number"] {
+  width: 100%;
+  height: 42px;
+
+  padding: 0 12px;
+
+  background: #ffffff;
+  border: 1px solid #ccc3d1;
+  border-radius: 5px;
+
+  outline: none;
+
+  font-size: 13px;
+  color: #3f3745;
+
+  transition: border-color 0.2s ease;
+}
+
+.geo-fields input[type="text"]:focus,
+.geo-fields input[type="number"]:focus {
+  border-color: #603f83;
+}
+
+/* ---------------- DEM BUTTON ---------------- */
+
+.dem-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 110px;
+  height: 40px;
+
+  padding: 0 15px;
+
+  background: #ffffff;
+  border: 1px solid #603f83;
+  border-radius: 5px;
+
+  color: #603f83;
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dem-button:hover {
+  background: #603f83;
+  color: #ffffff;
+}
+
+.dem-button input {
+  display: none;
+}
+
+.dem-name {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #716a75;
+  word-break: break-word;
+}
+
+/* ---------------- PROCESS BUTTON ---------------- */
+
+button.process-button {
+  width: 100% !important;
+  min-height: 50px !important;
+
+  margin-top: 4px !important;
+
+  background: #603f83 !important;
+  border: 1px solid #603f83 !important;
+  border-radius: 7px !important;
+
+  color: #ffffff !important;
+
+  font-size: 14px !important;
+  font-weight: 600 !important;
+
+  cursor: pointer;
+
+  box-shadow: 0 4px 10px rgba(96, 63, 131, 0.16);
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+button.process-button:hover {
+  background: #4d306b !important;
+  border-color: #4d306b !important;
+}
+
+button.process-button:active {
+  transform: translateY(1px);
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+
+@media (max-width: 650px) {
+  .type-options {
+    grid-template-columns: 1fr;
+  }
+
+  .file-area {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .file-button {
+    width: 100%;
+  }
+}

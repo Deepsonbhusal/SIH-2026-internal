@@ -1,184 +1,971 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+* {
+  box-sizing: border-box;
 }
 
-.hero {
+:root {
+  --background: #eeebf1;
+  --card: #faf9fb;
+  --white: #ffffff;
+
+  --purple: #603f83;
+  --purple-dark: #4d306b;
+  --purple-light: #eee8f4;
+
+  --amber: #f2aa4c;
+  --amber-dark: #dc9133;
+  --amber-light: #fff2df;
+
+  --text: #2e2834;
+  --muted: #716a75;
+
+  --border: #d7d1dc;
+  --border-dark: #bfb7c7;
+
+  --viewer: #18131e;
+  --viewer-border: #33283d;
+
+  --error: #8f4843;
+}
+
+
+/* =========================================================
+   BASE
+========================================================= */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+
+  color: var(--text);
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  line-height: 1.5;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+
+/* =========================================================
+   APP / BACKGROUND
+========================================================= */
+
+.app {
+  min-height: 100vh;
+
   position: relative;
 
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
+  overflow-x: hidden;
 
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
+  background-color: var(--background);
 
-  .framework,
-  .vite {
-    position: absolute;
-  }
+  background-image:
+    linear-gradient(
+      rgba(238, 235, 241, 0.77),
+      rgba(238, 235, 241, 0.77)
+    ),
+    url("https://mts.daumcdn.net/api/v1/tile/PNG02/v18_mf6t3/latest/4/957/444.png");
 
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
+  background-repeat: repeat;
 
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+  background-size:
+    auto,
+    512px 512px;
+
+  background-position:
+    center,
+    center;
+
+  background-attachment:
+    scroll,
+    fixed;
 }
 
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
 
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
+/* =========================================================
+   HEADER
+========================================================= */
 
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
+.header {
+  height: 78px;
 
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
+  background: #f4f1f7;
 
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
+  box-shadow:
+    0 3px 10px rgba(55, 42, 68, 0.10);
 
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
   position: relative;
+
+  z-index: 2;
+}
+
+.header-inner {
   width: 100%;
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
+  max-width: 1040px;
+
+  height: 100%;
+
+  margin: 0 auto;
+
+  padding: 0 24px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+}
+
+
+/* =========================================================
+   BRAND
+========================================================= */
+
+.brand {
+  cursor: pointer;
+
+  line-height: 1;
+}
+
+.brand-name {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  color: var(--purple);
+
+  font-size: 26px;
+
+  font-weight: 700;
+
+  letter-spacing: -0.9px;
+
+  line-height: 1;
+}
+
+.brand-name::after {
+
+
+  display: inline-flex;
+
+  align-items: center;
+
+  height: 17px;
+
+  padding: 0 6px;
+
+  background: var(--amber-light);
+
+  border: 1px solid #e3bd82;
+
+  border-radius: 3px;
+
+  color: #805728;
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 8px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.2px;
+
+  line-height: 1;
+
+  transform: translateY(1px);
+}
+
+.brand-subtitle {
+  margin-top: 5px;
+
+  color: #746c79;
+
+  font-size: 10px;
+
+  letter-spacing: 0.25px;
+
+  line-height: 1.2;
+}
+
+
+/* =========================================================
+   NAVBAR
+========================================================= */
+
+.nav {
+  display: flex;
+
+  align-items: center;
+
+  gap: 22px;
+}
+
+.nav-link {
+  padding: 4px 0;
+
+  background: transparent;
+
+  border: 0;
+
+  color: var(--muted);
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    color 150ms ease;
+}
+
+.nav-link:hover {
+  color: var(--purple);
+}
+
+.nav-link.active {
+  color: var(--purple);
+}
+
+.version-tag {
+  display: none;
+}
+
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.main {
+  width: 100%;
+
+  max-width: 1040px;
+
+  margin: 0 auto;
+
+  padding: 0 24px 60px;
+
+  position: relative;
+
+  z-index: 1;
+}
+
+
+/* =========================================================
+   START SCREEN
+========================================================= */
+
+.start-screen {
+  min-height: calc(100vh - 78px);
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  padding-top: 78px;
+}
+
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.hero {
+  width: 100%;
+
+  text-align: center;
+
+  margin-bottom: 32px;
+}
+
+.hero-label {
+  display: none;
+}
+
+.hero h1 {
+  margin: 0;
+
+  color: var(--purple);
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  font-size: 48px;
+
+  font-weight: 700;
+
+  line-height: 1.12;
+
+  letter-spacing: -1.1px;
+}
+
+.hero p {
+  max-width: 620px;
+
+  margin: 11px auto 0;
+
+  color: var(--muted);
+
+  font-size: 14px;
+
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+   UPLOAD CARD
+========================================================= */
+
+.upload-card {
+  width: 100%;
+
+  /*
+    Slightly wider so it fills the composition better.
+  */
+  max-width: 940px;
+
+  /*
+    A little more vertical breathing room.
+  */
+  padding: 34px 36px 36px;
+
+  background: rgba(250, 249, 251, 0.97);
+
+  border: 1px solid #c7becf;
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 10px 26px rgba(61, 45, 76, 0.08);
+
+  position: relative;
+}
+
+.upload-card::before,
+.upload-card::after {
+  display: none;
+}
+
+
+/* =========================================================
+   PROCESSING
+========================================================= */
+
+.processing-screen {
+  min-height: calc(100vh - 78px);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+}
+
+.processing-box {
+  width: 360px;
+
+  text-align: center;
+}
+
+.processing-label {
+  margin-bottom: 12px;
+
+  color: var(--purple);
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.8px;
+}
+
+.processing-line {
+  width: 100%;
+
+  height: 2px;
+
+  margin-bottom: 24px;
+
+  background: var(--border);
+
+  overflow: hidden;
+}
+
+.processing-line::after {
+  content: "";
+
+  display: block;
+
+  width: 35%;
+
+  height: 100%;
+
+  background: var(--amber);
+
+  animation: loading 1.2s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    margin-left: -35%;
   }
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
+  100% {
+    margin-left: 100%;
   }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
+}
+
+.processing-box h2 {
+  margin: 0 0 7px;
+
+  color: var(--purple);
+
+  font-size: 25px;
+
+  font-weight: 700;
+}
+
+.processing-box p {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 13px;
+}
+
+
+/* =========================================================
+   RESULTS
+========================================================= */
+
+.results-screen {
+  padding-top: 42px;
+}
+
+.results-header {
+  margin-bottom: 24px;
+
+  padding-bottom: 18px;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-end;
+
+  gap: 20px;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.results-header h1 {
+  margin: 0;
+
+  color: var(--purple);
+
+  font-size: 34px;
+
+  font-weight: 700;
+
+  letter-spacing: -0.7px;
+}
+
+.results-header p {
+  margin: 5px 0 0;
+
+  color: var(--muted);
+
+  font-size: 13px;
+}
+
+.new-image-button {
+  padding: 10px 15px;
+
+  background: var(--white);
+
+  border: 1px solid var(--border-dark);
+
+  border-radius: 5px;
+
+  color: var(--purple);
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.new-image-button:hover {
+  background: var(--purple-light);
+
+  border-color: var(--purple);
+
+  color: var(--purple-dark);
+}
+
+
+/* =========================================================
+   IMAGE RESULTS
+========================================================= */
+
+.image-results {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 16px;
+
+  margin-bottom: 16px;
+}
+
+.preview {
+  background: var(--white);
+
+  border: 1px solid var(--border);
+
+  border-radius: 5px;
+
+  overflow: hidden;
+}
+
+.preview-header {
+  padding: 13px 15px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  background: #faf9fb;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-header h3 {
+  margin: 0;
+
+  color: var(--purple);
+
+  font-size: 12px;
+
+  font-weight: 700;
+}
+
+.preview-header p {
+  margin: 2px 0 0;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.preview-header > span {
+  color: var(--purple);
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.1px;
+}
+
+.preview-image {
+  width: 100%;
+
+  height: 290px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  background: #e4e5ea;
+
+  overflow: hidden;
+
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.preview-image img {
+  width: 100%;
+
+  height: 100%;
+
+  display: block;
+
+  object-fit: contain;
+}
+
+
+/* =========================================================
+   TERRAIN
+========================================================= */
+
+.terrain-section {
+  overflow: hidden;
+
+  background: var(--viewer);
+
+  border: 1px solid var(--viewer-border);
+
+  border-radius: 5px;
+}
+
+.terrain-header {
+  padding: 16px 18px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  background: var(--white);
+
+  border-bottom: 1px solid var(--border);
+}
+
+.terrain-header h2 {
+  margin: 0;
+
+  color: var(--purple);
+
+  font-size: 22px;
+
+  font-weight: 700;
+}
+
+.terrain-header p {
+  margin: 4px 0 0;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.viewer-label {
+  padding: 5px 8px;
+
+  color: var(--purple);
+
+  background: var(--amber-light);
+
+  border: 1px solid #edcf9d;
+
+  border-radius: 4px;
+
+  font-size: 9px;
+
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.terrain-view {
+  width: 100%;
+
+  height: 600px;
+
+  background: var(--viewer);
+}
+
+.terrain-empty {
+  width: 100%;
+
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: #a9a1ad;
+
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+.status-bar {
+  margin-top: 14px;
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 20px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.status-success {
+  color: var(--purple);
+
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+.error-message {
+  margin-top: 16px;
+
+  padding: 12px 14px;
+
+  background: #f4e9e7;
+
+  border-left: 2px solid var(--error);
+
+  border-radius: 4px;
+
+  color: var(--error);
+
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.footer {
+  margin-top: 50px;
+
+  background: rgba(250, 249, 251, 0.96);
+
+  border-top: 1px solid var(--border);
+}
+
+.footer-inner {
+  width: 100%;
+
+  max-width: 980px;
+
+  margin: 0 auto;
+
+  padding: 24px 22px;
+
+  display: grid;
+
+  grid-template-columns: 1fr 1.5fr 1fr;
+
+  align-items: center;
+
+  gap: 24px;
+}
+
+.footer-left {
+  color: var(--muted);
+
+  font-size: 10px;
+
+  line-height: 1.6;
+}
+
+.footer-center {
+  text-align: center;
+}
+
+.footer-project {
+  color: var(--purple);
+
+  font-size: 18px;
+
+  font-weight: 700;
+
+  letter-spacing: -0.4px;
+}
+
+.footer-description {
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.footer-team {
+  margin-top: 8px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.footer-right {
+  text-align: right;
+
+  color: var(--muted);
+
+  font-size: 10px;
+
+  line-height: 1.7;
+}
+
+.footer-right div:first-child {
+  color: var(--purple);
+
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 960px) {
+  .upload-card {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 800px) {
+  .start-screen {
+    padding-top: 58px;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+  }
+
+  .image-results {
+    grid-template-columns: 1fr;
+  }
+
+  .results-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .terrain-view {
+    height: 480px;
+  }
+}
+
+
+/* =========================================================
+   FOOTER TABLET
+========================================================= */
+
+@media (max-width: 700px) {
+  .footer-inner {
+    grid-template-columns: 1fr;
+
+    text-align: center;
+
+    gap: 14px;
+  }
+
+  .footer-left,
+  .footer-right {
+    text-align: center;
+  }
+
+  .nav {
+    gap: 12px;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 550px) {
+  .header {
+    height: 72px;
+  }
+
+  .header-inner {
+    padding: 0 16px;
+  }
+
+  .brand-name {
+    font-size: 23px;
+  }
+
+  .brand-subtitle {
+    font-size: 9px;
+  }
+
+  .nav-link {
+    display: none;
+  }
+
+  .nav-link.active {
+    display: block;
+  }
+
+  .main {
+    padding-left: 14px;
+
+    padding-right: 14px;
+  }
+
+  .start-screen {
+    padding-top: 45px;
+  }
+
+  .hero h1 {
+    font-size: 34px;
+  }
+
+  .hero p {
+    font-size: 13px;
+  }
+
+  .upload-card {
+    padding: 22px 20px 24px;
+
+    border-radius: 12px;
+  }
+
+  .terrain-view {
+    height: 400px;
+  }
+
+  .footer-inner {
+    padding: 18px 16px;
   }
 }
