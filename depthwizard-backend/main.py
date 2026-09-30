@@ -70,8 +70,7 @@ RESULTS_DIR.mkdir(
 # AI SERVICE
 # =========================================================
 
-AI_SERVICE_URL = "http://127.0.0.1:8001/process"
-
+AI_SERVICE_URL = "https://sih-2026-internal-1.onrender.com/process"
 
 # =========================================================
 # STATIC RESULTS
