@@ -9,11 +9,7 @@ app = FastAPI(title="GeoSculpt AI Service", version="0.1.0")
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "outputs"
-CHECKPOINT = Path(
-    r"C:\Users\Dipson\dept-wizard\depthwizard-backend"
-    r"\outputs\finetune_v3\checkpoints\best.pth"
-)
-
+CHECKPOINT = ROOT / "models" / "best.pth"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
