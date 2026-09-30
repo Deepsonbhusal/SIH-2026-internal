@@ -3,8 +3,7 @@ import UploadPanel from "./UploadPanel";
 import Terrain from "./Terrain";
 import "./App.css";
 
-const BACKEND_URL = "http://localhost:8000";
-
+const BACKEND_URL = "https://sih-2026-internal.onrender.com";
 function makeBackendUrl(path) {
   if (!path) {
     return null;
