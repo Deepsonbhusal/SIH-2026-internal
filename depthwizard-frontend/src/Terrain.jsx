@@ -1,102 +1,74 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
 
 const TERRAIN_SCALE = 0.06;
 
-
 /* =========================================================
-   LOAD TEXTURE
+   LOAD TEXTURE DIRECTLY WITH THREE.JS
    ========================================================= */
 
-async function loadTexture(url) {
-  console.log("Fetching texture:", url);
+function loadTexture(url) {
+  return new Promise((resolve, reject) => {
+    console.log("Loading texture:", url);
 
-  const response = await fetch(url);
+    const loader = new THREE.TextureLoader();
 
-  if (!response.ok) {
-    throw new Error(
-      `Texture request failed: ${response.status} ${response.statusText}`
-    );
-  }
+    loader.setCrossOrigin("anonymous");
 
-  const blob = await response.blob();
+    loader.load(
+      `${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`,
 
-  const objectUrl =
-    URL.createObjectURL(blob);
+      (texture) => {
+        console.log(
+          "Texture loaded successfully:",
+          texture.image?.width,
+          "x",
+          texture.image?.height
+        );
 
-  try {
-    const image = await new Promise(
-      (resolve, reject) => {
-        const img = new Image();
+        texture.colorSpace = THREE.SRGBColorSpace;
 
-        img.onload = () => {
-          resolve(img);
-        };
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
 
-        img.onerror = () => {
-          reject(
-            new Error(
-              "Browser could not decode the terrain texture."
-            )
-          );
-        };
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
 
-        img.src = objectUrl;
+        texture.needsUpdate = true;
+
+        resolve(texture);
+      },
+
+      undefined,
+
+      (error) => {
+        console.error(
+          "Texture loading failed:",
+          error
+        );
+
+        reject(
+          new Error(
+            "Could not load terrain texture."
+          )
+        );
       }
     );
-
-    const texture =
-      new THREE.Texture(image);
-
-    texture.colorSpace =
-      THREE.SRGBColorSpace;
-
-    texture.wrapS =
-      THREE.ClampToEdgeWrapping;
-
-    texture.wrapT =
-      THREE.ClampToEdgeWrapping;
-
-    texture.minFilter =
-      THREE.LinearFilter;
-
-    texture.magFilter =
-      THREE.LinearFilter;
-
-    texture.needsUpdate = true;
-
-    console.log(
-      "Texture loaded:",
-      image.width,
-      "x",
-      image.height
-    );
-
-    return texture;
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  });
 }
-
 
 /* =========================================================
    LOAD OBJ
    ========================================================= */
 
 async function loadOBJ(url) {
-  console.log(
-    "Fetching OBJ:",
-    url
-  );
+  console.log("Fetching OBJ:", url);
 
-  const response =
-    await fetch(url);
+  const response = await fetch(
+    `${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -104,8 +76,7 @@ async function loadOBJ(url) {
     );
   }
 
-  const text =
-    await response.text();
+  const text = await response.text();
 
   console.log(
     "OBJ downloaded:",
@@ -114,27 +85,17 @@ async function loadOBJ(url) {
   );
 
   if (!text.trim()) {
-    throw new Error(
-      "OBJ file is empty."
-    );
+    throw new Error("OBJ file is empty.");
   }
 
   return text;
 }
 
-
 /* =========================================================
    PARSE OBJ
    ========================================================= */
 
-function parseOBJ(
-  text,
-  texture
-) {
-  console.log(
-    "Parsing OBJ..."
-  );
-
+function parseOBJ(text, texture) {
   const vertices = [];
   const texCoords = [];
 
@@ -142,40 +103,26 @@ function parseOBJ(
   const uvs = [];
   const indices = [];
 
-  const vertexMap =
-    new Map();
+  const vertexMap = new Map();
 
-  const lines =
-    text.split(/\r?\n/);
+  const lines = text.split(/\r?\n/);
 
   for (const line of lines) {
-    const trimmed =
-      line.trim();
+    const trimmed = line.trim();
 
-    if (!trimmed) {
+    if (!trimmed || trimmed.startsWith("#")) {
       continue;
     }
 
-    if (
-      trimmed.startsWith("#")
-    ) {
-      continue;
-    }
-
-    const parts =
-      trimmed.split(/\s+/);
-
-    const type =
-      parts[0];
+    const parts = trimmed.split(/\s+/);
+    const type = parts[0];
 
     /* -----------------------------------------------------
        VERTEX
        ----------------------------------------------------- */
 
     if (type === "v") {
-      if (parts.length < 4) {
-        continue;
-      }
+      if (parts.length < 4) continue;
 
       vertices.push([
         Number(parts[1]),
@@ -191,14 +138,7 @@ function parseOBJ(
        ----------------------------------------------------- */
 
     if (type === "vt") {
-      if (parts.length < 3) {
-        continue;
-      }
-
-      uvs.push(
-        Number(parts[1]),
-        Number(parts[2])
-      );
+      if (parts.length < 3) continue;
 
       texCoords.push([
         Number(parts[1]),
@@ -213,16 +153,13 @@ function parseOBJ(
        ----------------------------------------------------- */
 
     if (type === "f") {
-      const face =
-        parts.slice(1);
+      const face = parts.slice(1);
 
-      if (face.length < 3) {
-        continue;
-      }
+      if (face.length < 3) continue;
 
       /*
-       * Convert polygons into triangles.
-       */
+        Convert polygon into triangles.
+      */
 
       for (
         let i = 1;
@@ -235,16 +172,11 @@ function parseOBJ(
           face[i + 1],
         ];
 
-        for (
-          const vertex of triangle
-        ) {
-          const indexes =
-            vertex.split("/");
+        for (const vertex of triangle) {
+          const indexes = vertex.split("/");
 
           let positionIndex =
-            Number(
-              indexes[0]
-            );
+            Number(indexes[0]);
 
           let uvIndex = 0;
 
@@ -253,27 +185,19 @@ function parseOBJ(
             indexes[1] !== ""
           ) {
             uvIndex =
-              Number(
-                indexes[1]
-              );
+              Number(indexes[1]);
           }
 
-          /*
-           * Handle negative OBJ indexes.
-           */
+          /* Negative OBJ indexes */
 
-          if (
-            positionIndex < 0
-          ) {
+          if (positionIndex < 0) {
             positionIndex =
               vertices.length +
               positionIndex +
               1;
           }
 
-          if (
-            uvIndex < 0
-          ) {
+          if (uvIndex < 0) {
             uvIndex =
               texCoords.length +
               uvIndex +
@@ -286,30 +210,20 @@ function parseOBJ(
           let newIndex =
             vertexMap.get(key);
 
-          if (
-            newIndex ===
-            undefined
-          ) {
+          if (newIndex === undefined) {
             const position =
-              vertices[
-                positionIndex - 1
-              ];
-
-            const uv =
-              uvIndex > 0
-                ? texCoords[
-                    uvIndex - 1
-                  ]
-                : [
-                    0,
-                    0,
-                  ];
+              vertices[positionIndex - 1];
 
             if (!position) {
               throw new Error(
                 `Invalid OBJ vertex index: ${positionIndex}`
               );
             }
+
+            const uv =
+              uvIndex > 0
+                ? texCoords[uvIndex - 1]
+                : [0, 0];
 
             positions.push(
               position[0],
@@ -323,9 +237,7 @@ function parseOBJ(
             );
 
             newIndex =
-              positions.length /
-                3 -
-              1;
+              positions.length / 3 - 1;
 
             vertexMap.set(
               key,
@@ -333,37 +245,29 @@ function parseOBJ(
             );
           }
 
-          indices.push(
-            newIndex
-          );
+          indices.push(newIndex);
         }
       }
     }
   }
 
   console.log(
-    "Parsed OBJ:",
-    positions.length / 3,
-    "vertices"
+    "Parsed OBJ vertices:",
+    positions.length / 3
   );
 
   console.log(
-    "Parsed OBJ:",
-    indices.length / 3,
-    "triangles"
+    "Parsed OBJ triangles:",
+    indices.length / 3
   );
 
-  if (
-    positions.length === 0
-  ) {
+  if (positions.length === 0) {
     throw new Error(
       "OBJ contains no vertices."
     );
   }
 
-  if (
-    indices.length === 0
-  ) {
+  if (indices.length === 0) {
     throw new Error(
       "OBJ contains no faces."
     );
@@ -388,14 +292,11 @@ function parseOBJ(
     )
   );
 
-  geometry.setIndex(
-    indices
-  );
+  geometry.setIndex(indices);
 
   geometry.computeVertexNormals();
 
   geometry.computeBoundingBox();
-
   geometry.computeBoundingSphere();
 
   const material =
@@ -412,7 +313,6 @@ function parseOBJ(
   );
 }
 
-
 /* =========================================================
    TERRAIN MESH
    ========================================================= */
@@ -424,8 +324,7 @@ function TerrainMesh({
   onLoaded,
   onError,
 }) {
-  const { camera } =
-    useThree();
+  const { camera } = useThree();
 
   const [mesh, setMesh] =
     useState(null);
@@ -461,8 +360,10 @@ function TerrainMesh({
         );
 
         /*
-         * Load both files.
-         */
+        ------------------------------------------------------
+        Load OBJ and texture
+        ------------------------------------------------------
+        */
 
         const [
           objText,
@@ -472,17 +373,18 @@ function TerrainMesh({
           loadTexture(textureUrl),
         ]);
 
-        texture =
-          loadedTexture;
-
         if (cancelled) {
-          texture.dispose();
+          loadedTexture.dispose();
           return;
         }
 
+        texture = loadedTexture;
+
         /*
-         * Create terrain mesh.
-         */
+        ------------------------------------------------------
+        Create mesh
+        ------------------------------------------------------
+        */
 
         terrain =
           parseOBJ(
@@ -491,32 +393,10 @@ function TerrainMesh({
           );
 
         /*
-         * Backend OBJ:
-         *
-         * X = horizontal
-         * Y = image row
-         * Z = elevation
-         *
-         * Three.js:
-         *
-         * X = horizontal
-         * Y = up
-         * Z = depth
-         */
-
-        terrain.rotation.x =
-          -Math.PI / 2;
-
-        /*
-         * =================================================
-         * IMPORTANT FIX
-         * =================================================
-         *
-         * Scale BEFORE calculating the final center.
-         *
-         * This prevents the terrain from being positioned
-         * hundreds of units away from the camera.
-         */
+        ------------------------------------------------------
+        Scale terrain
+        ------------------------------------------------------
+        */
 
         terrain.scale.set(
           TERRAIN_SCALE,
@@ -525,9 +405,10 @@ function TerrainMesh({
         );
 
         /*
-         * Calculate the bounding box
-         * AFTER scaling.
-         */
+        ------------------------------------------------------
+        Center terrain
+        ------------------------------------------------------
+        */
 
         const box =
           new THREE.Box3().setFromObject(
@@ -543,32 +424,15 @@ function TerrainMesh({
         box.getCenter(center);
         box.getSize(size);
 
-        console.log(
-          "Scaled terrain center:",
-          center
-        );
-
-        console.log(
-          "Scaled terrain size:",
-          size
-        );
+        terrain.position.x -= center.x;
+        terrain.position.y -= center.y;
+        terrain.position.z -= center.z;
 
         /*
-         * Center terrain in world space.
-         */
-
-        terrain.position.x -=
-          center.x;
-
-        terrain.position.y -=
-          center.y;
-
-        terrain.position.z -=
-          center.z;
-
-        /*
-         * Camera framing.
-         */
+        ------------------------------------------------------
+        Camera
+        ------------------------------------------------------
+        */
 
         const largestDimension =
           Math.max(
@@ -579,7 +443,7 @@ function TerrainMesh({
 
         const distance =
           Math.max(
-            largestDimension * 1.6,
+            largestDimension * 1.8,
             8
           );
 
@@ -597,21 +461,16 @@ function TerrainMesh({
 
         camera.updateProjectionMatrix();
 
-        console.log(
-          "Camera position:",
-          camera.position
-        );
-
         /*
-         * Finish.
-         */
+        ------------------------------------------------------
+        Finished
+        ------------------------------------------------------
+        */
 
         if (cancelled) {
           terrain.geometry.dispose();
 
-          if (
-            terrain.material
-          ) {
+          if (terrain.material) {
             terrain.material.dispose();
           }
 
@@ -635,6 +494,7 @@ function TerrainMesh({
         );
 
         onLoaded();
+
       } catch (error) {
         console.error(
           "================================"
@@ -653,7 +513,7 @@ function TerrainMesh({
         if (!cancelled) {
           onError(
             error?.message ||
-              "Unknown terrain loading error."
+            "Unknown terrain loading error."
           );
         }
       }
@@ -664,6 +524,7 @@ function TerrainMesh({
     return () => {
       cancelled = true;
     };
+
   }, [
     objUrl,
     textureUrl,
@@ -676,15 +537,7 @@ function TerrainMesh({
     return null;
   }
 
-  function handlePointerMove(
-    event
-  ) {
-    /*
-     * Since the displayed mesh is scaled,
-     * convert the displayed Y back to
-     * approximate metric rDSM.
-     */
-
+  function handlePointerMove(event) {
     const metricHeight =
       event.point.y /
       TERRAIN_SCALE;
@@ -712,9 +565,8 @@ function TerrainMesh({
   );
 }
 
-
 /* =========================================================
-   MAIN COMPONENT
+   MAIN TERRAIN COMPONENT
    ========================================================= */
 
 function Terrain({
@@ -729,10 +581,6 @@ function Terrain({
 
   const [error, setError] =
     useState("");
-
-  /*
-   * Stable callbacks.
-   */
 
   const handleLoaded =
     useCallback(() => {
@@ -774,6 +622,8 @@ function Terrain({
       }}
     >
 
+      {/* HEIGHT */}
+
       {height !== null && (
         <div
           style={{
@@ -789,12 +639,14 @@ function Terrain({
             pointerEvents: "none",
           }}
         >
-          Metric rDSM{" "}
+          Relative height{" "}
           <strong>
             {height} m
           </strong>
         </div>
       )}
+
+      {/* LOADING */}
 
       {!loaded && !error && (
         <div
@@ -814,6 +666,8 @@ function Terrain({
           Loading 3D terrain...
         </div>
       )}
+
+      {/* ERROR */}
 
       {error && (
         <div
@@ -840,6 +694,8 @@ function Terrain({
           {error}
         </div>
       )}
+
+      {/* THREE.JS */}
 
       <Canvas
         camera={{
@@ -917,6 +773,7 @@ function Terrain({
         />
 
       </Canvas>
+
     </div>
   );
 }

@@ -1,6 +1,12 @@
 from pathlib import Path
 from uuid import uuid4
 import shutil
+import subprocess
+
+import cv2
+import numpy as np
+import rasterio
+import requests
 
 from fastapi import (
     FastAPI,
@@ -9,27 +15,14 @@ from fastapi import (
     Form,
     HTTPException,
 )
-
-from fastapi.middleware.cors import (
-    CORSMiddleware,
-)
-
-from fastapi.staticfiles import (
-    StaticFiles,
-)
-
-from depth_inference import (
-    process_image,
-)
-
-from texture_generator import (
-    generate_textured_mesh,
-)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from PIL import Image
 
 
-# ============================================================
+# =========================================================
 # APP
-# ============================================================
+# =========================================================
 
 app = FastAPI(
     title="GeoSculpt Backend",
@@ -37,23 +30,30 @@ app = FastAPI(
 )
 
 
-# ============================================================
-# PATHS
-# ============================================================
+# =========================================================
+# CORS
+# =========================================================
 
-ROOT = Path(
-    __file__
-).resolve().parent
-
-UPLOAD_DIR = (
-    ROOT
-    / "uploads"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-RESULTS_DIR = (
-    ROOT
-    / "results"
-)
+
+# =========================================================
+# DIRECTORIES
+# =========================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+
+UPLOAD_DIR = BASE_DIR / "uploads"
+RESULTS_DIR = BASE_DIR / "results"
 
 UPLOAD_DIR.mkdir(
     parents=True,
@@ -66,105 +66,494 @@ RESULTS_DIR.mkdir(
 )
 
 
-# ============================================================
+# =========================================================
+# AI SERVICE
+# =========================================================
+
+AI_SERVICE_URL = "http://127.0.0.1:8001/process"
+
+
+# =========================================================
 # STATIC RESULTS
-# ============================================================
+# =========================================================
 
 app.mount(
     "/results",
-    StaticFiles(
-        directory=str(
-            RESULTS_DIR
-        )
-    ),
+    StaticFiles(directory=str(RESULTS_DIR)),
     name="results",
 )
 
 
-# ============================================================
-# CORS
-# ============================================================
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ============================================================
-# HOME
-# ============================================================
+# =========================================================
+# HEALTH CHECK
+# =========================================================
 
 @app.get("/")
-def home():
+def health_check():
 
     return {
-        "message":
-            "GeoSculpt backend is running",
-
-        "pipeline":
-            "non-georeferenced",
-
-        "status":
-            "ready",
+        "message": "GeoSculpt backend is running",
+        "pipeline": "GeoSculpt AI Service",
+        "status": "ready",
+        "ai_service": AI_SERVICE_URL,
     }
 
 
-# ============================================================
-# PROCESS
-# ============================================================
+# =========================================================
+# CREATE DEPTH PREVIEW
+# =========================================================
+
+def create_depth_preview(
+    scene_dir: Path,
+):
+
+    inference_dir = (
+        scene_dir / "inference"
+    )
+
+    tif_path = (
+        inference_dir /
+        "relative_dsm.tif"
+    )
+
+    preview_path = (
+        inference_dir /
+        "relative_dsm_preview.png"
+    )
+
+    if not tif_path.exists():
+
+        raise FileNotFoundError(
+            "relative_dsm.tif was not found."
+        )
+
+    print(
+        "Creating depth preview..."
+    )
+
+    with rasterio.open(
+        tif_path
+    ) as src:
+
+        depth = src.read(1)
+
+    depth = np.nan_to_num(
+        depth,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    ).astype(
+        np.float32
+    )
+
+    low, high = np.percentile(
+        depth,
+        [2, 98],
+    )
+
+    normalized = (
+        depth - low
+    ) / (
+        high - low + 1e-8
+    )
+
+    normalized = np.clip(
+        normalized,
+        0.0,
+        1.0,
+    )
+
+    preview = (
+        normalized * 255.0
+    ).astype(
+        np.uint8
+    )
+
+    cv2.imwrite(
+        str(preview_path),
+        preview,
+    )
+
+    print(
+        "Depth preview:",
+        preview_path,
+    )
+
+    return preview_path
+
+
+# =========================================================
+# CREATE TERRAIN MESH
+# =========================================================
+
+def create_terrain_mesh(
+    scene_dir: Path,
+    input_image: Path,
+):
+
+    """
+    Create a textured relative-depth terrain OBJ.
+
+    This is a visualization mesh.
+
+    It is NOT a metric DSM.
+
+    The current pipeline uses monocular relative depth,
+    so the vertical scale is intentionally conservative.
+    """
+
+    inference_dir = (
+        scene_dir / "inference"
+    )
+
+    tif_path = (
+        inference_dir /
+        "relative_dsm.tif"
+    )
+
+    if not tif_path.exists():
+
+        raise FileNotFoundError(
+            "relative_dsm.tif was not found."
+        )
+
+    terrain_dir = (
+        scene_dir / "terrain"
+    )
+
+    terrain_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    obj_path = (
+        terrain_dir /
+        "terrain.obj"
+    )
+
+    texture_path = (
+        terrain_dir /
+        "texture.jpg"
+    )
+
+    print(
+        "Creating terrain mesh..."
+    )
+
+    # =====================================================
+    # READ DEPTH
+    # =====================================================
+
+    with rasterio.open(
+        tif_path
+    ) as src:
+
+        depth = src.read(1)
+
+    depth = np.nan_to_num(
+        depth,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    ).astype(
+        np.float32
+    )
+
+    # =====================================================
+    # REDUCE MESH RESOLUTION
+    # =====================================================
+
+    rows = 160
+    cols = 240
+
+    depth = cv2.resize(
+        depth,
+        (
+            cols,
+            rows,
+        ),
+        interpolation=cv2.INTER_AREA,
+    )
+
+    # =====================================================
+    # REMOVE EXTREME OUTLIERS
+    # =====================================================
+
+    low, high = np.percentile(
+        depth,
+        [2, 98],
+    )
+
+    depth = np.clip(
+        depth,
+        low,
+        high,
+    )
+
+    # =====================================================
+    # NORMALIZE
+    # =====================================================
+
+    depth = (
+        depth - low
+    ) / (
+        high - low + 1e-8
+    )
+
+    depth = np.clip(
+        depth,
+        0.0,
+        1.0,
+    )
+
+    # =====================================================
+    # SMOOTH DEPTH
+    # =====================================================
+
+    # Slight smoothing removes tiny pixel-level
+    # variations without destroying building shapes.
+
+    depth = cv2.GaussianBlur(
+        depth,
+        (0, 0),
+        sigmaX=1.2,
+        sigmaY=1.2,
+    )
+
+    # =====================================================
+    # SUPPRESS LOW-LEVEL DEPTH NOISE
+    # =====================================================
+
+    # Relative monocular depth contains many small
+    # variations that should not become terrain height.
+    #
+    # Keep the lower 30% close to the ground plane.
+
+    depth = np.clip(
+        (depth - 0.30) / 0.70,
+        0.0,
+        1.0,
+    )
+
+    # =====================================================
+    # HEIGHT CURVE
+    # =====================================================
+
+    # Gamma > 1 suppresses weak variations and
+    # preserves stronger structures.
+
+    depth = np.power(
+        depth,
+        2.0,
+    )
+
+    # =====================================================
+    # FINAL VERTICAL SCALE
+    # =====================================================
+
+    depth *= 5.0
+
+    depth = np.clip(
+        depth,
+        0.0,
+        5.0,
+    )
+
+    # =====================================================
+    # CREATE TEXTURE
+    # =====================================================
+
+    image = Image.open(
+        input_image
+    ).convert(
+        "RGB"
+    )
+
+    image.save(
+        texture_path,
+        "JPEG",
+        quality=90,
+    )
+
+    # =====================================================
+    # TERRAIN DIMENSIONS
+    # =====================================================
+
+    terrain_width = 100.0
+    terrain_depth = 65.0
+
+    # =====================================================
+    # WRITE OBJ
+    # =====================================================
+
+    with open(
+        obj_path,
+        "w",
+        encoding="utf-8",
+    ) as obj:
+
+        obj.write(
+            "# GeoSculpt relative-depth terrain\n"
+        )
+
+        obj.write(
+            "# Visualization mesh only\n"
+        )
+
+        # -------------------------------------------------
+        # VERTICES
+        # -------------------------------------------------
+
+        for y in range(rows):
+
+            for x in range(cols):
+
+                px = (
+                    x /
+                    (cols - 1)
+                )
+
+                py = (
+                    y /
+                    (rows - 1)
+                )
+
+                world_x = (
+                    px - 0.5
+                ) * terrain_width
+
+                world_y = (
+                    0.5 - py
+                ) * terrain_depth
+
+                world_z = float(
+                    depth[y, x]
+                )
+
+                obj.write(
+                    f"v "
+                    f"{world_x:.5f} "
+                    f"{world_z:.5f} "
+                    f"{world_y:.5f}\n"
+                )
+
+        # -------------------------------------------------
+        # UV COORDINATES
+        # -------------------------------------------------
+
+        for y in range(rows):
+
+            for x in range(cols):
+
+                u = (
+                    x /
+                    (cols - 1)
+                )
+
+                v = 1.0 - (
+                    y /
+                    (rows - 1)
+                )
+
+                obj.write(
+                    f"vt "
+                    f"{u:.6f} "
+                    f"{v:.6f}\n"
+                )
+
+        # -------------------------------------------------
+        # TRIANGLES
+        # -------------------------------------------------
+
+        for y in range(
+            rows - 1
+        ):
+
+            for x in range(
+                cols - 1
+            ):
+
+                a = (
+                    y * cols
+                    + x
+                    + 1
+                )
+
+                b = (
+                    y * cols
+                    + x
+                    + 2
+                )
+
+                c = (
+                    (y + 1) * cols
+                    + x
+                    + 2
+                )
+
+                d = (
+                    (y + 1) * cols
+                    + x
+                    + 1
+                )
+
+                # Triangle 1
+
+                obj.write(
+                    f"f "
+                    f"{a}/{a} "
+                    f"{b}/{b} "
+                    f"{c}/{c}\n"
+                )
+
+                # Triangle 2
+
+                obj.write(
+                    f"f "
+                    f"{a}/{a} "
+                    f"{c}/{c} "
+                    f"{d}/{d}\n"
+                )
+
+    print(
+        "Terrain OBJ:",
+        obj_path,
+    )
+
+    print(
+        "Terrain texture:",
+        texture_path,
+    )
+
+    return (
+        obj_path,
+        texture_path,
+    )
+
+
+# =========================================================
+# PROCESS IMAGE
+# =========================================================
 
 @app.post("/process")
 async def process_image_api(
-
     file: UploadFile = File(...),
-
     image_type: str = Form(...),
-
     latitude: str = Form(""),
-
     longitude: str = Form(""),
-
     dem_file: UploadFile | None = File(None),
 ):
 
-    # --------------------------------------------------------
-    # Current implementation
-    # --------------------------------------------------------
-
-    if image_type != "normal":
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Georeferenced processing is "
-                "not implemented yet. "
-                "Use the non-georeferenced "
-                "image type."
-            ),
-        )
-
-    # --------------------------------------------------------
-    # Validate filename
-    # --------------------------------------------------------
+    # =====================================================
+    # VALIDATE
+    # =====================================================
 
     if not file.filename:
 
         raise HTTPException(
             status_code=400,
-            detail=(
-                "No image filename provided."
-            ),
+            detail="No image filename provided.",
         )
-
-    # --------------------------------------------------------
-    # Allowed formats
-    # --------------------------------------------------------
 
     allowed_extensions = {
         ".jpg",
@@ -174,17 +563,13 @@ async def process_image_api(
         ".tiff",
     }
 
-    original_filename = (
-        Path(
-            file.filename
-        ).name
-    )
+    original_filename = Path(
+        file.filename
+    ).name
 
-    extension = (
-        Path(
-            original_filename
-        ).suffix.lower()
-    )
+    extension = Path(
+        original_filename
+    ).suffix.lower()
 
     if extension not in allowed_extensions:
 
@@ -196,23 +581,35 @@ async def process_image_api(
             ),
         )
 
-    # --------------------------------------------------------
-    # Unique scene name
-    # --------------------------------------------------------
+    # =====================================================
+    # CURRENT PIPELINE
+    # =====================================================
 
-    unique_id = (
-        uuid4()
-        .hex[:8]
-    )
+    if image_type != "normal":
 
-    original_stem = (
-        Path(
-            original_filename
-        ).stem
-    )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Georeferenced processing is "
+                "not connected yet. "
+                "Use the non-georeferenced "
+                "image type for now."
+            ),
+        )
+
+    # =====================================================
+    # UNIQUE SCENE NAME
+    # =====================================================
+
+    unique_id = uuid4().hex[:8]
+
+    original_stem = Path(
+        original_filename
+    ).stem
 
     scene_name = (
-        f"{original_stem}_{unique_id}"
+        f"{original_stem}_"
+        f"{unique_id}"
     )
 
     input_filename = (
@@ -221,13 +618,13 @@ async def process_image_api(
     )
 
     input_path = (
-        UPLOAD_DIR
-        / input_filename
+        UPLOAD_DIR /
+        input_filename
     )
 
-    # --------------------------------------------------------
-    # Save image
-    # --------------------------------------------------------
+    # =====================================================
+    # SAVE UPLOAD
+    # =====================================================
 
     try:
 
@@ -246,30 +643,29 @@ async def process_image_api(
         raise HTTPException(
             status_code=500,
             detail=(
-                "Failed to save "
-                f"uploaded image: {exc}"
+                "Failed to save uploaded image: "
+                f"{exc}"
             ),
         )
 
-    # --------------------------------------------------------
-    # DEM is not currently used
-    # --------------------------------------------------------
+    # =====================================================
+    # DEM FILE
+    # =====================================================
 
     if dem_file is not None:
 
         print(
-            "DEM file received, but "
-            "georeferenced processing "
-            "is disabled."
+            "DEM file received."
         )
 
-    # --------------------------------------------------------
-    # Header
-    # --------------------------------------------------------
+        print(
+            "DEM processing will be connected "
+            "in the georeferenced pipeline."
+        )
 
-    print(
-        "\n"
-    )
+    # =====================================================
+    # LOG
+    # =====================================================
 
     print(
         "=" * 75
@@ -284,161 +680,299 @@ async def process_image_api(
     )
 
     print(
-        f"Input image : "
-        f"{original_filename}"
+        "Input image :",
+        original_filename,
     )
 
     print(
-        f"Scene name  : "
-        f"{scene_name}"
+        "Scene name  :",
+        scene_name,
     )
 
-    # --------------------------------------------------------
-    # Depth processing
-    # --------------------------------------------------------
+    print(
+        "AI service  :",
+        AI_SERVICE_URL,
+    )
+
+    # =====================================================
+    # CALL AI SERVICE
+    # =====================================================
 
     try:
 
-        depth_result = (
-            process_image(
+        with open(
+            input_path,
+            "rb",
+        ) as image_file:
+
+            response = requests.post(
+                AI_SERVICE_URL,
+                files={
+                    "file": (
+                        original_filename,
+                        image_file,
+                        file.content_type
+                        or "application/octet-stream",
+                    )
+                },
+                timeout=1800,
+            )
+
+        response.raise_for_status()
+
+        ai_result = response.json()
+
+    except requests.exceptions.ConnectionError:
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "GeoSculpt AI service is not running. "
+                "Start it on "
+                "http://127.0.0.1:8001"
+            ),
+        )
+
+    except requests.exceptions.Timeout:
+
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "GeoSculpt AI service timed out "
+                "while processing the image."
+            ),
+        )
+
+    except requests.exceptions.HTTPError:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "GeoSculpt AI service failed: "
+                f"{response.text}"
+            ),
+        )
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to communicate with "
+                "GeoSculpt AI service: "
+                f"{exc}"
+            ),
+        )
+
+    # =====================================================
+    # CHECK AI RESULT
+    # =====================================================
+
+    if ai_result.get(
+        "status"
+    ) != "success":
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message":
+                    "AI processing failed.",
+                "ai_result":
+                    ai_result,
+            },
+        )
+
+    print("")
+
+    print(
+        "GeoSculpt AI processing completed."
+    )
+
+    print(
+        "AI job ID:",
+        ai_result.get(
+            "job_id"
+        ),
+    )
+
+    print(
+        "AI output:",
+        ai_result.get(
+            "output_dir"
+        ),
+    )
+
+    # =====================================================
+    # AI OUTPUT DIRECTORY
+    # =====================================================
+
+    ai_output_dir = ai_result.get(
+        "output_dir"
+    )
+
+    if not ai_output_dir:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "AI service completed but "
+                "did not return an output directory."
+            ),
+        )
+
+    ai_output_path = Path(
+        ai_output_dir
+    )
+
+    if not ai_output_path.exists():
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "AI service returned an output "
+                "directory that does not exist."
+            ),
+        )
+
+    # =====================================================
+    # BACKEND RESULT DIRECTORY
+    # =====================================================
+
+    backend_result_dir = (
+        RESULTS_DIR /
+        scene_name
+    )
+
+    try:
+
+        if backend_result_dir.exists():
+
+            shutil.rmtree(
+                backend_result_dir
+            )
+
+        shutil.copytree(
+            ai_output_path,
+            backend_result_dir,
+        )
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "AI output was generated, "
+                "but copying the results failed: "
+                f"{exc}"
+            ),
+        )
+
+    # =====================================================
+    # CREATE PREVIEW
+    # =====================================================
+
+    try:
+
+        create_depth_preview(
+            backend_result_dir
+        )
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Depth preview generation failed: "
+                f"{exc}"
+            ),
+        )
+
+    # =====================================================
+    # CREATE TERRAIN
+    # =====================================================
+
+    try:
+
+        obj_path, texture_path = (
+            create_terrain_mesh(
+                backend_result_dir,
                 input_path,
-                scene_name=scene_name,
             )
         )
 
     except Exception as exc:
 
-        print(
-            "\nDepth processing failed."
-        )
-
-        print(exc)
-
         raise HTTPException(
             status_code=500,
             detail=(
-                f"Depth processing failed: "
+                "Terrain generation failed: "
                 f"{exc}"
             ),
         )
 
-    # --------------------------------------------------------
-    # IMPORTANT:
-    #
-    # For a non-georeferenced RGB input,
-    # use the RELATIVE rDSM for visualization.
-    #
-    # Do NOT use the global metric baseline
-    # as the primary mesh input.
-    # --------------------------------------------------------
+    # =====================================================
+    # GENERATED FILES
+    # =====================================================
 
-    relative_rdsm_path = (
-        depth_result[
-            "relative_npy"
-        ]
-    )
+    generated_files = []
 
-    try:
+    for path in backend_result_dir.rglob("*"):
 
-        mesh_result = (
-            generate_textured_mesh(
-                input_path,
-                relative_rdsm_path,
-                scene_name=scene_name,
-            )
-        )
+        if path.is_file():
 
-    except Exception as exc:
+            try:
 
-        print(
-            "\nMesh processing failed."
-        )
+                relative = (
+                    path.relative_to(
+                        backend_result_dir
+                    )
+                )
 
-        print(exc)
+                generated_files.append(
+                    str(relative)
+                )
 
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                f"Mesh processing failed: "
-                f"{exc}"
-            ),
-        )
+            except Exception:
 
-    # --------------------------------------------------------
-    # URLs
-    # --------------------------------------------------------
+                pass
 
-    relative_png_url = (
-        f"/results/depth/"
-        f"{scene_name}_relative.png"
-    )
+    generated_files.sort()
 
-    relative_npy_url = (
-        f"/results/depth/"
-        f"{scene_name}_relative.npy"
-    )
+    # =====================================================
+    # URLS
+    # =====================================================
 
-    raw_npy_url = (
-        f"/results/depth/"
-        f"{scene_name}_raw_depth.npy"
-    )
-
-    metric_rdsm_png_url = (
-        f"/results/depth/"
-        f"{scene_name}_metric_rDSM.png"
-    )
-
-    metric_rdsm_npy_url = (
-        f"/results/depth/"
-        f"{scene_name}_metric_rDSM.npy"
+    depth_url = (
+        f"/results/"
+        f"{scene_name}/"
+        f"inference/"
+        f"relative_dsm_preview.png"
     )
 
     obj_url = (
-        f"/results/mesh/"
-        f"{scene_name}_textured.obj"
-    )
-
-    mtl_url = (
-        f"/results/mesh/"
-        f"{scene_name}_textured.mtl"
+        f"/results/"
+        f"{scene_name}/"
+        f"terrain/"
+        f"terrain.obj"
     )
 
     texture_url = (
-        f"/results/mesh/"
-        f"{scene_name}_texture.png"
+        f"/results/"
+        f"{scene_name}/"
+        f"terrain/"
+        f"texture.jpg"
     )
 
-    # --------------------------------------------------------
-    # Response
-    # --------------------------------------------------------
+    scene_meta_url = (
+        f"/results/"
+        f"{scene_name}/"
+        f"meta/"
+        f"scene_meta.json"
+    )
 
-    metric_info = None
-
-    if depth_result[
-        "metric_rdsm"
-    ] is not None:
-
-        metric = (
-            depth_result[
-                "metric_rdsm"
-            ]
-        )
-
-        metric_info = {
-            "min": float(
-                metric.min()
-            ),
-
-            "max": float(
-                metric.max()
-            ),
-
-            "npy_url":
-                metric_rdsm_npy_url,
-
-            "png_url":
-                metric_rdsm_png_url,
-        }
+    # =====================================================
+    # RESPONSE
+    # =====================================================
 
     return {
 
@@ -452,112 +986,91 @@ async def process_image_api(
             scene_name,
 
         "image_type":
-            "normal",
+            image_type,
 
         "pipeline":
-            "non-georeferenced",
+            "GeoSculpt AI Service",
 
-        "depth_shape": [
-            int(
-                depth_result[
-                    "relative_depth"
-                ].shape[0]
+        "job_id":
+            ai_result.get(
+                "job_id"
             ),
 
-            int(
-                depth_result[
-                    "relative_depth"
-                ].shape[1]
-            ),
-        ],
+        # -------------------------------------------------
+        # AI OUTPUT
+        # -------------------------------------------------
 
-        # ----------------------------------------------------
-        # PRIMARY OUTPUT
-        # ----------------------------------------------------
+        "ai_output": {
+
+            "output_dir":
+                str(
+                    backend_result_dir
+                ),
+
+            "relative_dsm_url":
+                depth_url,
+
+            "terrain_obj_url":
+                obj_url,
+
+            "terrain_texture_url":
+                texture_url,
+
+            "scene_meta_url":
+                scene_meta_url,
+
+            "generated_files":
+                generated_files,
+        },
+
+        # -------------------------------------------------
+        # FRONTEND COMPATIBILITY
+        # -------------------------------------------------
 
         "relative_rdsm": {
 
-            "min": float(
-                depth_result[
-                    "relative_depth"
-                ].min()
-            ),
-
-            "max": float(
-                depth_result[
-                    "relative_depth"
-                ].max()
-            ),
-
-            "npy_url":
-                relative_npy_url,
-
             "png_url":
-                relative_png_url,
+                depth_url,
+
         },
-
-        # ----------------------------------------------------
-        # OPTIONAL METRIC BASELINE
-        # ----------------------------------------------------
-
-        "metric_baseline":
-            metric_info,
-
-        # ----------------------------------------------------
-        # RAW DEPTH
-        # ----------------------------------------------------
-
-        "raw_depth": {
-
-            "npy_url":
-                raw_npy_url,
-        },
-
-        # ----------------------------------------------------
-        # MESH
-        # ----------------------------------------------------
 
         "mesh": {
 
             "obj_url":
                 obj_url,
 
-            "mtl_url":
-                mtl_url,
-
             "texture_url":
                 texture_url,
 
-            "vertices":
-                mesh_result[
-                    "vertices"
-                ],
-
-            "uvs":
-                mesh_result[
-                    "uvs"
-                ],
-
-            "faces":
-                mesh_result[
-                    "faces"
-                ],
-
-            "mesh_size":
-                mesh_result[
-                    "mesh_size"
-                ],
-
-            "height_source":
-                "relative_rDSM",
-
-            "coordinate_system":
-                "non-georeferenced",
         },
 
-        "message": (
-            "Image processed successfully. "
-            "Relative rDSM and textured "
-            "3D terrain generated."
-        ),
+        "terrain_obj_url":
+            obj_url,
+
+        "terrain_texture_url":
+            texture_url,
+
+        # -------------------------------------------------
+        # LOCATION
+        # -------------------------------------------------
+
+        "location": {
+
+            "latitude":
+                latitude,
+
+            "longitude":
+                longitude,
+
+        },
+
+        # -------------------------------------------------
+        # INFO
+        # -------------------------------------------------
+
+        "message":
+            (
+                "Image successfully processed "
+                "by the GeoSculpt AI service."
+            ),
     }
