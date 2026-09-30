@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+numpy
+rasterio
+opencv-python-headless
+torch
+torchvision
+Pillow
+scipy
+requests
+huggingface_hub
+pyproj
+open3d
