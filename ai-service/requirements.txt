@@ -11,3 +11,4 @@ requests
 huggingface_hub
 pyproj
 open3d
+python-multipart
