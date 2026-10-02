@@ -3,3 +3,6 @@ name = "geosculpt-ai"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = ["fastapi","uvicorn","numpy","rasterio","opencv-python","torch","torchvision","Pillow","scipy","requests","huggingface_hub","pyproj","open3d"]
+
+[tool.vercel]
+entrypoint = "api:app"
