@@ -59,9 +59,10 @@ async def process(file: UploadFile = File(...)):
             text=True,
         )
 
-        if result.returncode != 0:
+       if result.returncode != 0:
     error_output = (result.stderr + "\n" + result.stdout)[-8000:]
     raise HTTPException(500, {"status":"failed","error":error_output})
+
     except HTTPException:
         raise
 
