@@ -15,6 +15,7 @@ from fastapi import (
     Form,
     HTTPException,
 )
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -37,10 +38,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://deepsonbhusal.github.io",
-],
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://deepsonbhusal.github.io",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,7 +72,10 @@ RESULTS_DIR.mkdir(
 # AI SERVICE
 # =========================================================
 
-AI_SERVICE_URL = "https://sih-2026-internal-1.onrender.com/process"
+AI_SERVICE_URL = (
+    "https://sih-2026-internal-1.onrender.com/process"
+)
+
 
 # =========================================================
 # STATIC RESULTS
@@ -107,18 +111,16 @@ def create_depth_preview(
     scene_dir: Path,
 ):
 
-    inference_dir = (
-        scene_dir / "inference"
-    )
+    inference_dir = scene_dir / "inference"
 
     tif_path = (
-        inference_dir /
-        "relative_dsm.tif"
+        inference_dir
+        / "relative_dsm.tif"
     )
 
     preview_path = (
-        inference_dir /
-        "relative_dsm_preview.png"
+        inference_dir
+        / "relative_dsm_preview.png"
     )
 
     if not tif_path.exists():
@@ -131,9 +133,7 @@ def create_depth_preview(
         "Creating depth preview..."
     )
 
-    with rasterio.open(
-        tif_path
-    ) as src:
+    with rasterio.open(tif_path) as src:
 
         depth = src.read(1)
 
@@ -207,8 +207,8 @@ def create_terrain_mesh(
     )
 
     tif_path = (
-        inference_dir /
-        "relative_dsm.tif"
+        inference_dir
+        / "relative_dsm.tif"
     )
 
     if not tif_path.exists():
@@ -227,13 +227,13 @@ def create_terrain_mesh(
     )
 
     obj_path = (
-        terrain_dir /
-        "terrain.obj"
+        terrain_dir
+        / "terrain.obj"
     )
 
     texture_path = (
-        terrain_dir /
-        "texture.jpg"
+        terrain_dir
+        / "texture.jpg"
     )
 
     print(
@@ -244,9 +244,7 @@ def create_terrain_mesh(
     # READ DEPTH
     # =====================================================
 
-    with rasterio.open(
-        tif_path
-    ) as src:
+    with rasterio.open(tif_path) as src:
 
         depth = src.read(1)
 
@@ -310,9 +308,6 @@ def create_terrain_mesh(
     # SMOOTH DEPTH
     # =====================================================
 
-    # Slight smoothing removes tiny pixel-level
-    # variations without destroying building shapes.
-
     depth = cv2.GaussianBlur(
         depth,
         (0, 0),
@@ -324,11 +319,6 @@ def create_terrain_mesh(
     # SUPPRESS LOW-LEVEL DEPTH NOISE
     # =====================================================
 
-    # Relative monocular depth contains many small
-    # variations that should not become terrain height.
-    #
-    # Keep the lower 30% close to the ground plane.
-
     depth = np.clip(
         (depth - 0.30) / 0.70,
         0.0,
@@ -338,9 +328,6 @@ def create_terrain_mesh(
     # =====================================================
     # HEIGHT CURVE
     # =====================================================
-
-    # Gamma > 1 suppresses weak variations and
-    # preserves stronger structures.
 
     depth = np.power(
         depth,
@@ -465,13 +452,9 @@ def create_terrain_mesh(
         # TRIANGLES
         # -------------------------------------------------
 
-        for y in range(
-            rows - 1
-        ):
+        for y in range(rows - 1):
 
-            for x in range(
-                cols - 1
-            ):
+            for x in range(cols - 1):
 
                 a = (
                     y * cols
@@ -618,8 +601,8 @@ async def process_image_api(
     )
 
     input_path = (
-        UPLOAD_DIR /
-        input_filename
+        UPLOAD_DIR
+        / input_filename
     )
 
     # =====================================================
@@ -667,17 +650,10 @@ async def process_image_api(
     # LOG
     # =====================================================
 
-    print(
-        "=" * 75
-    )
-
-    print(
-        "GEOSCULPT - API PROCESSING"
-    )
-
-    print(
-        "=" * 75
-    )
+    print("")
+    print("=" * 75)
+    print("GEOSCULPT - API PROCESSING")
+    print("=" * 75)
 
     print(
         "Input image :",
@@ -718,22 +694,49 @@ async def process_image_api(
                 timeout=1800,
             )
 
+        # =================================================
+        # IMPORTANT DEBUG LOGGING
+        # =================================================
+
+        print(
+            "AI STATUS:",
+            response.status_code,
+        )
+
+        print(
+            "AI RESPONSE:",
+            response.text[:10000],
+        )
+
+        # =================================================
+        # CHECK HTTP STATUS
+        # =================================================
+
         response.raise_for_status()
 
         ai_result = response.json()
 
-    except requests.exceptions.ConnectionError:
+    except requests.exceptions.ConnectionError as exc:
+
+        print(
+            "AI CONNECTION ERROR:",
+            str(exc),
+        )
 
         raise HTTPException(
             status_code=503,
             detail=(
-                "GeoSculpt AI service is not running. "
-                "Start it on "
-                "http://127.0.0.1:8001"
+                "GeoSculpt AI service connection failed: "
+                f"{exc}"
             ),
         )
 
-    except requests.exceptions.Timeout:
+    except requests.exceptions.Timeout as exc:
+
+        print(
+            "AI TIMEOUT:",
+            str(exc),
+        )
 
         raise HTTPException(
             status_code=504,
@@ -745,6 +748,16 @@ async def process_image_api(
 
     except requests.exceptions.HTTPError:
 
+        print(
+            "AI HTTP ERROR:",
+            response.status_code,
+        )
+
+        print(
+            "AI ERROR BODY:",
+            response.text[:10000],
+        )
+
         raise HTTPException(
             status_code=500,
             detail=(
@@ -754,6 +767,11 @@ async def process_image_api(
         )
 
     except Exception as exc:
+
+        print(
+            "AI COMMUNICATION ERROR:",
+            str(exc),
+        )
 
         raise HTTPException(
             status_code=500,
@@ -768,38 +786,29 @@ async def process_image_api(
     # CHECK AI RESULT
     # =====================================================
 
-    if ai_result.get(
-        "status"
-    ) != "success":
+    if ai_result.get("status") != "success":
 
         raise HTTPException(
             status_code=500,
             detail={
-                "message":
-                    "AI processing failed.",
-                "ai_result":
-                    ai_result,
+                "message": "AI processing failed.",
+                "ai_result": ai_result,
             },
         )
 
     print("")
-
     print(
         "GeoSculpt AI processing completed."
     )
 
     print(
         "AI job ID:",
-        ai_result.get(
-            "job_id"
-        ),
+        ai_result.get("job_id"),
     )
 
     print(
         "AI output:",
-        ai_result.get(
-            "output_dir"
-        ),
+        ai_result.get("output_dir"),
     )
 
     # =====================================================
@@ -839,8 +848,8 @@ async def process_image_api(
     # =====================================================
 
     backend_result_dir = (
-        RESULTS_DIR /
-        scene_name
+        RESULTS_DIR
+        / scene_name
     )
 
     try:
@@ -975,26 +984,19 @@ async def process_image_api(
     # =====================================================
 
     return {
+        "status": "success",
 
-        "status":
-            "success",
+        "filename": original_filename,
 
-        "filename":
-            original_filename,
+        "scene_name": scene_name,
 
-        "scene_name":
-            scene_name,
+        "image_type": image_type,
 
-        "image_type":
-            image_type,
+        "pipeline": "GeoSculpt AI Service",
 
-        "pipeline":
-            "GeoSculpt AI Service",
-
-        "job_id":
-            ai_result.get(
-                "job_id"
-            ),
+        "job_id": ai_result.get(
+            "job_id"
+        ),
 
         # -------------------------------------------------
         # AI OUTPUT
@@ -1002,25 +1004,19 @@ async def process_image_api(
 
         "ai_output": {
 
-            "output_dir":
-                str(
-                    backend_result_dir
-                ),
+            "output_dir": str(
+                backend_result_dir
+            ),
 
-            "relative_dsm_url":
-                depth_url,
+            "relative_dsm_url": depth_url,
 
-            "terrain_obj_url":
-                obj_url,
+            "terrain_obj_url": obj_url,
 
-            "terrain_texture_url":
-                texture_url,
+            "terrain_texture_url": texture_url,
 
-            "scene_meta_url":
-                scene_meta_url,
+            "scene_meta_url": scene_meta_url,
 
-            "generated_files":
-                generated_files,
+            "generated_files": generated_files,
         },
 
         # -------------------------------------------------
@@ -1029,26 +1025,21 @@ async def process_image_api(
 
         "relative_rdsm": {
 
-            "png_url":
-                depth_url,
+            "png_url": depth_url,
 
         },
 
         "mesh": {
 
-            "obj_url":
-                obj_url,
+            "obj_url": obj_url,
 
-            "texture_url":
-                texture_url,
+            "texture_url": texture_url,
 
         },
 
-        "terrain_obj_url":
-            obj_url,
+        "terrain_obj_url": obj_url,
 
-        "terrain_texture_url":
-            texture_url,
+        "terrain_texture_url": texture_url,
 
         # -------------------------------------------------
         # LOCATION
@@ -1056,11 +1047,9 @@ async def process_image_api(
 
         "location": {
 
-            "latitude":
-                latitude,
+            "latitude": latitude,
 
-            "longitude":
-                longitude,
+            "longitude": longitude,
 
         },
 
@@ -1068,9 +1057,8 @@ async def process_image_api(
         # INFO
         # -------------------------------------------------
 
-        "message":
-            (
-                "Image successfully processed "
-                "by the GeoSculpt AI service."
-            ),
+        "message": (
+            "Image successfully processed "
+            "by the GeoSculpt AI service."
+        ),
     }
