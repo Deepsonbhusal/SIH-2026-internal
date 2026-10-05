@@ -233,3 +233,10 @@ __pycache__/
 *.pyc
 .vercel
 .env*
+
+
+node_modules/
+.env
+.env.*
+ai-service/outputs/
+dist/

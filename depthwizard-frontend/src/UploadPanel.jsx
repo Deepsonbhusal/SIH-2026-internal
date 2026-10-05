@@ -4,6 +4,7 @@ import "./UploadPanel.css";
 function UploadPanel({
   onImageSelect,
   onProcess,
+  onSeeDemo,
 }) {
   const [imageType, setImageType] = useState("normal");
 
@@ -55,6 +56,12 @@ function UploadPanel({
       longitude,
       demFile,
     });
+  }
+
+  function handleDemo() {
+    if (onSeeDemo) {
+      onSeeDemo();
+    }
   }
 
   return (
@@ -234,6 +241,18 @@ function UploadPanel({
         disabled={!imageFile}
       >
         Process image
+      </button>
+
+      {/* =========================
+          DEMO
+      ========================= */}
+
+      <button
+        type="button"
+        className="see-demo-button"
+        onClick={handleDemo}
+      >
+        See Demo
       </button>
 
     </div>

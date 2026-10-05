@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
+
 import UploadPanel from "./UploadPanel";
 import Terrain from "./Terrain";
+
 import "./App.css";
 
-const BACKEND_URL = "https://sih-2026-internal.onrender.com";
-function makeBackendUrl(path) {
-  if (!path) {
-    return null;
-  }
+const DEMO_BASE = `${import.meta.env.BASE_URL}demo/`;
 
-  if (
-    path.startsWith("http://") ||
-    path.startsWith("https://")
-  ) {
-    return path;
-  }
-
-  return `${BACKEND_URL}${path}`;
-}
+const DEMO_IMAGE = `${DEMO_BASE}demo-image.jpg`;
+const DEMO_DEPTH = `${DEMO_BASE}demo-depth.png`;
+const DEMO_OBJ = `${DEMO_BASE}terrain.obj`;
+const DEMO_TEXTURE = `${DEMO_BASE}texture.jpg`;
 
 function App() {
   const [image, setImage] = useState(null);
@@ -32,7 +25,12 @@ function App() {
     useState(null);
 
   const [processing, setProcessing] = useState(false);
+
   const [error, setError] = useState("");
+
+  const [cloudUnavailable, setCloudUnavailable] =
+    useState(false);
+
 
   /* =====================================================
      LOCAL IMAGE PREVIEW
@@ -40,7 +38,6 @@ function App() {
 
   useEffect(() => {
     if (!image) {
-      setImageUrl(null);
       return;
     }
 
@@ -53,320 +50,137 @@ function App() {
     };
   }, [image]);
 
+
   /* =====================================================
-     PROCESS IMAGE
+     IMAGE SELECT
   ===================================================== */
 
-  async function handleProcess(data) {
+  function handleImageSelect(file) {
+    setImage(file);
+
+    setCloudUnavailable(false);
+    setProcessData(null);
+
+    setDepthMapUrl(null);
+    setTerrainObjUrl(null);
+    setTerrainTextureUrl(null);
+
+    setError("");
+  }
+
+
+  /* =====================================================
+     PROCESS IMAGE
+
+     Cloud inference is currently unavailable.
+  ===================================================== */
+
+  async function handleProcess() {
     if (!image) {
       alert("Please select an RGB image first.");
       return;
     }
 
-    setProcessing(true);
-    setError("");
+    setProcessing(false);
 
     setProcessData(null);
+
     setDepthMapUrl(null);
     setTerrainObjUrl(null);
     setTerrainTextureUrl(null);
 
-    const formData = new FormData();
-
-    formData.append("file", image);
+    setError("");
 
     /*
-      Current working pipeline:
-      non-georeferenced RGB processing.
+      Open the professional maintenance page.
     */
 
-    formData.append("image_type", "normal");
-
-    /*
-      Keep the mode selected by the user.
-    */
-
-    formData.append(
-      "selected_mode",
-      data.imageType
-    );
-
-    /*
-      Geo information for future georeferenced pipeline.
-    */
-
-    if (data.imageType === "georeferenced") {
-      formData.append(
-        "latitude",
-        data.latitude
-      );
-
-      formData.append(
-        "longitude",
-        data.longitude
-      );
-
-      if (data.demFile) {
-        formData.append(
-          "dem_file",
-          data.demFile
-        );
-      }
-    }
-
-    try {
-      console.log(
-        "========================================"
-      );
-
-      console.log(
-        "Selected mode:",
-        data.imageType
-      );
-
-      console.log(
-        "Current processing pipeline:",
-        "non-georeferenced"
-      );
-
-      console.log(
-        "Input image:",
-        image.name
-      );
-
-      console.log(
-        "========================================"
-      );
-
-      const response = await fetch(
-        `${BACKEND_URL}/process`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      let result = null;
-
-      try {
-        result = await response.json();
-      } catch {
-        result = null;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          result?.detail ||
-            "Backend request failed."
-        );
-      }
-
-      console.log(
-        "Backend response:",
-        result
-      );
-
-      /* =================================================
-         SCENE NAME
-      ================================================= */
-
-      const sceneName =
-        result?.scene_name ||
-        null;
-
-      console.log(
-        "Scene name:",
-        sceneName
-      );
-
-      /* =================================================
-         DEPTH / rDSM
-      ================================================= */
-
-      /*
-        First use the exact URL returned by backend.
-
-        Then use the older response formats.
-
-        Finally, if backend returned a scene_name,
-        construct the URL dynamically.
-
-        IMPORTANT:
-        There is NO hardcoded wallpaper fallback.
-      */
-
-      let depthPath =
-        result?.ai_output?.relative_dsm_url ||
-        result?.relative_rdsm?.png_url ||
-        result?.relative_depth?.png_url ||
-        result?.refined_depth?.png_url ||
-        result?.depth_map_url ||
-        result?.depth_url ||
-        null;
-
-      /*
-        Dynamic scene-based fallback.
-
-        This is intentionally based on the current
-        uploaded scene instead of walpaper_77fbc662.
-      */
-
-      if (!depthPath && sceneName) {
-        depthPath =
-          `/results/${sceneName}/inference/relative_dsm_preview.png`;
-      }
-
-      const finalDepthUrl =
-        makeBackendUrl(depthPath);
-
-      console.log(
-        "Depth URL:",
-        finalDepthUrl
-      );
-
-      if (finalDepthUrl) {
-        setDepthMapUrl(finalDepthUrl);
-      }
-
-      /* =================================================
-         TERRAIN OBJ
-      ================================================= */
-
-      let objPath =
-        result?.ai_output?.terrain_obj_url ||
-        result?.mesh?.obj_url ||
-        result?.obj_url ||
-        result?.terrain_obj_url ||
-        null;
-
-      /*
-        Dynamic scene-based fallback.
-      */
-
-      if (!objPath && sceneName) {
-        objPath =
-          `/results/${sceneName}/terrain/terrain.obj`;
-      }
-
-      const finalObjUrl =
-        makeBackendUrl(objPath);
-
-      console.log(
-        "Terrain OBJ URL:",
-        finalObjUrl
-      );
-
-      if (finalObjUrl) {
-        setTerrainObjUrl(finalObjUrl);
-      }
-
-      /* =================================================
-         TERRAIN TEXTURE
-      ================================================= */
-
-      let texturePath =
-        result?.ai_output?.terrain_texture_url ||
-        result?.mesh?.texture_url ||
-        result?.texture_url ||
-        result?.terrain_texture_url ||
-        null;
-
-      /*
-        Dynamic scene-based fallback.
-      */
-
-      if (!texturePath && sceneName) {
-        texturePath =
-          `/results/${sceneName}/terrain/texture.jpg`;
-      }
-
-      const finalTextureUrl =
-        makeBackendUrl(texturePath);
-
-      console.log(
-        "Terrain texture URL:",
-        finalTextureUrl
-      );
-
-      if (finalTextureUrl) {
-        setTerrainTextureUrl(
-          finalTextureUrl
-        );
-      }
-
-      /* =================================================
-         SAVE RESULT
-      ================================================= */
-
-      setProcessData({
-        ...result,
-
-        ui_selected_mode:
-          data.imageType,
-
-        pipeline_used:
-          "non-georeferenced",
-
-        uploaded_filename:
-          image.name,
-
-        scene_name:
-          sceneName,
-
-        resolved_urls: {
-          depth:
-            finalDepthUrl,
-
-          terrain_obj:
-            finalObjUrl,
-
-          terrain_texture:
-            finalTextureUrl,
-        },
-      });
-
-      console.log(
-        "========================================"
-      );
-
-      console.log(
-        "RESOLVED FILES"
-      );
-
-      console.log(
-        "Depth:",
-        finalDepthUrl
-      );
-
-      console.log(
-        "OBJ:",
-        finalObjUrl
-      );
-
-      console.log(
-        "Texture:",
-        finalTextureUrl
-      );
-
-      console.log(
-        "========================================"
-      );
-
-    } catch (err) {
-      console.error(
-        "Processing error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-          "Could not connect to the Geosculpt backend."
-      );
-
-    } finally {
-      setProcessing(false);
-    }
+    setCloudUnavailable(true);
   }
+
+
+  /* =====================================================
+     SEE DEMO
+  ===================================================== */
+
+  function handleSeeDemo() {
+    setCloudUnavailable(false);
+
+    setProcessing(false);
+
+    setError("");
+
+    /*
+      Use the pre-generated demo image.
+    */
+
+    setImage(null);
+
+    setImageUrl(DEMO_IMAGE);
+
+    /*
+      Pre-generated depth result.
+    */
+
+    setDepthMapUrl(DEMO_DEPTH);
+
+    /*
+      Existing Terrain.jsx will load these.
+    */
+
+    setTerrainObjUrl(DEMO_OBJ);
+
+    setTerrainTextureUrl(DEMO_TEXTURE);
+
+    /*
+      Make the existing results screen
+      display the demo exactly like a
+      completed reconstruction.
+    */
+
+    setProcessData({
+      status: "success",
+
+      scene_name:
+        "GeoSculpt Demo Terrain",
+
+      pipeline_used:
+        "pre-generated-demo",
+
+      uploaded_filename:
+        "GeoSculpt Demo",
+
+      depth_shape: null,
+
+      mesh: {
+        vertices:
+          "Pre-generated",
+      },
+
+      resolved_urls: {
+        depth:
+          DEMO_DEPTH,
+
+        terrain_obj:
+          DEMO_OBJ,
+
+        terrain_texture:
+          DEMO_TEXTURE,
+      },
+    });
+  }
+
+
+  /* =====================================================
+     BACK FROM MAINTENANCE
+  ===================================================== */
+
+  function handleBackToUpload() {
+    setCloudUnavailable(false);
+
+    setError("");
+  }
+
 
   /* =====================================================
      NEW IMAGE
@@ -374,6 +188,7 @@ function App() {
 
   function handleNewImage() {
     setImage(null);
+
     setImageUrl(null);
 
     setProcessData(null);
@@ -381,10 +196,14 @@ function App() {
     setDepthMapUrl(null);
 
     setTerrainObjUrl(null);
+
     setTerrainTextureUrl(null);
+
+    setCloudUnavailable(false);
 
     setError("");
   }
+
 
   /* =====================================================
      UI
@@ -393,9 +212,9 @@ function App() {
   return (
     <div className="app">
 
-      {/* =====================================================
+      {/* =================================================
           HEADER
-      ===================================================== */}
+      ================================================= */}
 
       <header className="header">
 
@@ -417,13 +236,79 @@ function App() {
 
       </header>
 
+
       <main className="main">
 
-        {/* =====================================================
-            START SCREEN
-        ===================================================== */}
 
-        {!processData &&
+        {/* =================================================
+            CLOUD MAINTENANCE PAGE
+        ================================================= */}
+
+        {cloudUnavailable && (
+          <section className="maintenance-screen">
+
+            <div className="maintenance-content">
+
+               <div className="maintenance-status">
+                SERVICE STATUS
+              </div> 
+
+
+              <div className="maintenance-icon">
+                <div className="maintenance-icon-line" />
+                <div className="maintenance-icon-dot" />
+              </div> 
+
+
+              <h1>
+                Cloud inference is
+                <br />
+                temporarily unavailable.
+              </h1>
+
+
+              <p className="maintenance-description">
+                We can't process new images at the moment
+                because the cloud inference service has
+                reached its current processing limit.
+              </p>
+
+
+            
+              <div className="maintenance-actions">
+
+                <button
+                  className="maintenance-demo-button"
+                  onClick={handleSeeDemo}
+                >
+                  See Demo
+                </button>
+
+
+                <button
+                  className="maintenance-back-button"
+                  onClick={handleBackToUpload}
+                >
+                  Back to upload
+                </button>
+
+              </div>
+
+
+              
+
+            </div>
+
+          </section>
+        )}
+
+
+        {/* =================================================
+            START SCREEN
+        ================================================= */}
+
+        {!cloudUnavailable &&
+          !processData &&
           !processing && (
 
             <section className="start-screen">
@@ -444,11 +329,21 @@ function App() {
 
               </div>
 
+
               <div className="upload-card">
 
                 <UploadPanel
-                  onImageSelect={setImage}
-                  onProcess={handleProcess}
+                  onImageSelect={
+                    handleImageSelect
+                  }
+
+                  onProcess={
+                    handleProcess
+                  }
+
+                  onSeeDemo={
+                    handleSeeDemo
+                  }
                 />
 
               </div>
@@ -457,9 +352,10 @@ function App() {
 
           )}
 
-        {/* =====================================================
+
+        {/* =================================================
             PROCESSING SCREEN
-        ===================================================== */}
+        ================================================= */}
 
         {processing && (
 
@@ -471,7 +367,8 @@ function App() {
                 GEOSCULPT
               </div>
 
-              <div className="processing-line"></div>
+              <div className="processing-line">
+              </div>
 
               <h2>
                 Generating terrain
@@ -488,12 +385,14 @@ function App() {
 
         )}
 
-        {/* =====================================================
+
+        {/* =================================================
             RESULTS
-        ===================================================== */}
+        ================================================= */}
 
         {processData &&
-          !processing && (
+          !processing &&
+          !cloudUnavailable && (
 
             <section className="results-screen">
 
@@ -516,20 +415,25 @@ function App() {
 
                 </div>
 
+
                 <button
                   className="new-image-button"
-                  onClick={handleNewImage}
+                  onClick={
+                    handleNewImage
+                  }
                 >
                   Process another image
                 </button>
 
               </div>
 
-              {/* =================================================
+
+              {/* ==========================================
                   IMAGE RESULTS
-              ================================================= */}
+              ========================================== */}
 
               <div className="image-results">
+
 
                 {/* ORIGINAL IMAGE */}
 
@@ -555,6 +459,7 @@ function App() {
 
                   </div>
 
+
                   <div className="preview-image">
 
                     {imageUrl ? (
@@ -575,6 +480,7 @@ function App() {
                   </div>
 
                 </div>
+
 
                 {/* DEPTH MAP */}
 
@@ -600,6 +506,7 @@ function App() {
 
                   </div>
 
+
                   <div className="preview-image">
 
                     {depthMapUrl ? (
@@ -624,9 +531,10 @@ function App() {
 
               </div>
 
-              {/* =================================================
+
+              {/* ==========================================
                   3D TERRAIN
-              ================================================= */}
+              ========================================== */}
 
               <section className="terrain-section">
 
@@ -648,16 +556,18 @@ function App() {
 
                   </div>
 
+
                   <span className="viewer-label">
                     LIVE VIEW
                   </span>
 
                 </div>
 
+
                 <div className="terrain-view">
 
                   {!terrainObjUrl ||
-                  !terrainTextureUrl ? (
+                    !terrainTextureUrl ? (
 
                     <div className="terrain-empty">
 
@@ -666,7 +576,7 @@ function App() {
                       </div>
 
                       <small>
-                        Waiting for backend terrain output.
+                        Waiting for terrain output.
                       </small>
 
                     </div>
@@ -685,9 +595,10 @@ function App() {
 
               </section>
 
-              {/* =================================================
+
+              {/* ==========================================
                   STATUS
-              ================================================= */}
+              ========================================== */}
 
               <div className="status-bar">
 
@@ -695,23 +606,31 @@ function App() {
                   ✓ Processing complete
                 </span>
 
+
                 {processData.scene_name && (
+
                   <span>
                     Scene{" "}
                     {processData.scene_name}
                   </span>
+
                 )}
 
+
                 {processData.depth_shape && (
+
                   <span>
                     Depth{" "}
                     {processData.depth_shape[0]}
                     {" × "}
                     {processData.depth_shape[1]}
                   </span>
+
                 )}
 
+
                 {processData.relative_rdsm && (
+
                   <span>
                     Relative rDSM{" "}
                     {Number(
@@ -722,28 +641,35 @@ function App() {
                       processData.relative_rdsm.max
                     ).toFixed(2)}
                   </span>
+
                 )}
 
+
                 {processData.mesh && (
+
                   <span>
                     Mesh{" "}
                     {processData.mesh.vertices}
                     {" "}vertices
                   </span>
+
                 )}
 
               </div>
+
 
             </section>
 
           )}
 
-        {/* =====================================================
+
+        {/* =================================================
             ERROR
-        ===================================================== */}
+        ================================================= */}
 
         {error &&
-          !processing && (
+          !processing &&
+          !cloudUnavailable && (
 
             <div className="error-message">
               {error}

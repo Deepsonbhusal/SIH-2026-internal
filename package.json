@@ -1,7 +1,8 @@
 {
   "dependencies": {
-    "@react-three/drei": "^10.7.8",
-    "@react-three/fiber": "^9.7.0",
+    "@huggingface/transformers": "^4.3.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
     "three": "^0.185.1"
   }
 }
